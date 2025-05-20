@@ -1,3 +1,8 @@
+import os
+import numpy as np
+import pandas as pd
+import ast
+
 def compute_mask_iou(bbox, mask):
     x1, y1, x2, y2 = map(int, bbox)
     h, w = mask.shape
@@ -14,3 +19,55 @@ def compute_mask_iou(bbox, mask):
     union = np.logical_or(mask, bbox_mask).sum()
 
     return intersection / union if union > 0 else 0.0
+
+
+ROOT_DIR = "/path/to/dataset" 
+OUTPUT_DIR = os.path.join(ROOT_DIR, "comparison_results")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+for folder in os.listdir(ROOT_DIR):
+    folder_path = os.path.join(ROOT_DIR, folder)
+    if not os.path.isdir(folder_path):
+        continue
+
+    csv_path = os.path.join(folder_path, f"{folder}_features.csv")
+    mask_path = os.path.join(folder_path, f"{folder}.npy")
+
+    if not os.path.exists(csv_path) or not os.path.exists(mask_path):
+        print(f"Missing CSV or mask for {folder}")
+        continue
+
+    print(f"Processing: {folder}")
+    df = pd.read_csv(csv_path)
+    if isinstance(df['bbox'].iloc[0], str):
+        df['bbox'] = df['bbox'].apply(ast.literal_eval)
+
+    mask = np.load(mask_path)
+    results = []
+
+    for frame_idx in range(mask.shape[0]):
+        frame_mask = mask[frame_idx]
+        has_mask_anomaly = frame_mask.any()
+
+        frame_objs = df[df['frame_idx'] == frame_idx]
+        has_cadi_anomaly = frame_objs['cadi_anomaly'].sum() > 0
+
+        if has_mask_anomaly or has_cadi_anomaly:
+            for _, row in frame_objs.iterrows():
+                bbox = row['bbox']
+                is_cadi_anomaly = row['cadi_anomaly'] == 1
+                iou = compute_mask_iou(bbox, frame_mask)
+
+                results.append({
+                    "frame_idx": frame_idx,
+                    "track_id": row.get("track_id", None),
+                    "bbox": bbox,
+                    "cadi_anomaly": int(is_cadi_anomaly),
+                    "mask_anomaly": int(iou > 0),
+                    "iou": iou
+                })
+
+    out_df = pd.DataFrame(results)
+    out_path = os.path.join(OUTPUT_DIR, f"{folder}_iou_comparison.csv")
+    out_df.to_csv(out_path, index=False)
+    print(f"Saved: {out_path}")
