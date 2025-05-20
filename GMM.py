@@ -1,32 +1,16 @@
-import json
 import pandas as pd
 from sklearn.mixture import GaussianMixture
-from sklearn.preprocessing import StandardScaler
+from utilz import select_feature_columns
 
-metadata_file_path = "/Volumes/ronni/shanghaitech/metadata_output/01_0014_metadata.json"
-output_path = "outputs/gmm_scored_metadata.csv"
 
-with open(metadata_file_path, 'r') as file:
-    data = json.load(file)
+def run(df):
 
-df = pd.DataFrame(data)
+    X = df[select_feature_columns(df)]
 
-df[['x1', 'y1', 'x2', 'y2']] = pd.DataFrame(df['bbox'].tolist(), index=df.index)
+    gmm = GaussianMixture(n_components=4, covariance_type="full", random_state=42)
+    gmm.fit(X)
 
-df["width"] = df["x2"] - df["x1"]
-df["height"] = df["y2"] - df["y1"]
-df["center_x"] = (df["x1"] + df["x2"]) / 2
-df["center_y"] = (df["y1"] + df["y2"]) / 2
+    log_likelihoods = gmm.score_samples(X)
 
-features = ["center_x", "center_y", "width", "height", "velocity", "direction", "class_id", "confidence"]
-scaler = StandardScaler()
-X = scaler.fit_transform(df[features])
+    return pd.Series(-log_likelihoods, index=df.index, name='score_gmm')   # lower = more anomalous
 
-gmm = GaussianMixture(n_components=4, covariance_type="full", random_state=42)
-gmm.fit(X)
-
-log_likelihoods = gmm.score_samples(X)
-df["anomaly_score"] = -log_likelihoods  # lower = more anomalous
-
-df.to_csv(output_path, index=False)
-print(f"Saved scored metadata to: {output_path}")
