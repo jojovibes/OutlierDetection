@@ -1,31 +1,66 @@
-import os
 import pandas as pd
 from cadi.Src.forest import Forest
 from cadi.Src.dataset import *
+from utilz import select_feature_columns
+import tempfile
 
-DATA_PATH = "cadi/Data/cardio.csv"
-OUTPUT_PATH = "outputs/cardio_with_cadi.csv"
-NB_TREES = 100
-MAX_HEIGHT = 256
-CONTAMINATION_RATE = 0.05
+def run(df):
 
-data = Dataset(DATA_PATH, labels=False)
+    NB_TREES = 100
+    MAX_HEIGHT = 256
+    CONTAMINATION_RATE = 0.05
 
-f = Forest(data, nbT=NB_TREES, method="cadi", maxHeight=MAX_HEIGHT)
-f.build()
+    feature_cols = select_feature_columns(df)
+    X = df[feature_cols]
 
-f.anomalyDetection(binary=True, contamination_rate=CONTAMINATION_RATE)
-f.clustering()
-f.explain_anomalies()
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as tmpfile:
+        X.to_csv(tmpfile.name, index=False, header=False)
+        dataset = Dataset(tmpfile.name) 
 
-df = pd.DataFrame(d.data, columns=d.attributes)
+    f = Forest(dataset, nbT=NB_TREES, method="cadi", maxHeight=MAX_HEIGHT)
+    f.build()
+
+    f.anomalyDetection(binary=True, contamination_rate=CONTAMINATION_RATE)
+    f.clustering()
+    f.explain_anomalies()
+
+    # df = pd.DataFrame(dataset.data, columns=feature_cols)
+
+    is_anomaly = np.zeros(len(df), dtype=int)
+    is_anomaly[f.anomalies] = 1
+
+    df["cadi_anomaly"] = is_anomaly
+    df["score_cadi"] = f.scores
+    df["cadi_cluster"] = f.clusters_affectations
+    df["cadi_explanation"] = f.explanations
+
+    return df
+
+    # X = df[select_feature_columns(df)].to_numpy()
+
+    # dataset = Dataset(X)
+
+    # f = Forest(dataset, nbT=NB_TREES, method="cadi", maxHeight=MAX_HEIGHT)
+    # f.build()
+
+    # f.anomalyDetection(binary=True, contamination_rate=CONTAMINATION_RATE)
+    # f.clustering()
+    # f.explain_anomalies()
+
+    # feature_cols = select_feature_columns(df)
+    # df = pd.DataFrame(dataset.data, columns=feature_cols)
+
+    # is_anomaly = np.zeros(len(df), dtype=int)
+    # is_anomaly[f.anomalies] = 1
+
+    # df["cadi_anomaly"] = is_anomaly
+    # df["cadi_score"] = f.scores
+    # df["cadi_cluster"] = f.clusters_affectations # cluster labels (-1 for anomalies)
+    # df["cadi_explanation"] = [f.explanations.get(i, "") for i in range(len(df))]
+
+    # return df
 
 
-df["cadi_score"] = f.scores
-df["cadi_cluster"] = f.clusters_affectations # cluster labels (-1 for anomalies)
-df["cadi_explanation"] = f.explanations
-
-
-os.makedirs("outputs", exist_ok=True)
-df.to_csv(OUTPUT_PATH, index=False)
-print(f"output path: {OUTPUT_PATH}")
+    # os.makedirs("outputs", exist_ok=True)
+    # df.to_csv(OUTPUT_PATH, index=False)
+    # print(f"output path: {OUTPUT_PATH}")
