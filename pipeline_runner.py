@@ -26,7 +26,7 @@ def process_folder(folder_path):
         try:
             frame_idx = int(os.path.splitext(fname)[0])
 
-            if frame_idx == 50: #small_batch testing
+            if frame_idx == 30: #small_batch testing
                 break
 
             img = cv2.imread(fpath)
@@ -52,18 +52,16 @@ def process_folder(folder_path):
 
 
 def main():
-    # for folder_name in os.listdir(ROOT_DIR):
-        # if folder_name == "output":
-        #     continue
+    for folder_name in os.listdir(ROOT_DIR):
+        if folder_name == "output":
+            continue
 
-        # folder_path = os.path.join(ROOT_DIR, folder_name)
+        folder_path = os.path.join(ROOT_DIR, folder_name)
 
-        # if not os.path.isdir(folder_path):
-        #     continue
+        if not os.path.isdir(folder_path):
+            continue
 
-        folder_name = "01_0016"
-
-        df = process_folder("/Volumes/ronni/shanghaitech/testing/frames/01_0016")
+        df = process_folder(folder_path)
         df = derive_features(df)
         
         class_prob_df = pd.DataFrame(df['class_probabilities'].tolist(), index=df.index)
