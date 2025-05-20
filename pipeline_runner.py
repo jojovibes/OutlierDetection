@@ -9,7 +9,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/Volumes/ronni/shanghaitech/testing/small_batch'
+ROOT_DIR = '/Volumes/ronni/shanghaitech/testing/frames'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -26,7 +26,7 @@ def process_folder(folder_path):
         try:
             frame_idx = int(os.path.splitext(fname)[0])
 
-            if frame_idx == 30: #small_batch testing
+            if frame_idx == 50: #small_batch testing
                 break
 
             img = cv2.imread(fpath)
@@ -61,9 +61,9 @@ def main():
         # if not os.path.isdir(folder_path):
         #     continue
 
-        folder_name = "01_0054"
+        folder_name = "01_0016"
 
-        df = process_folder("/Volumes/ronni/shanghaitech/testing/small_batch/01_0054")
+        df = process_folder("/Volumes/ronni/shanghaitech/testing/frames/01_0016")
         df = derive_features(df)
         
         class_prob_df = pd.DataFrame(df['class_probabilities'].tolist(), index=df.index)

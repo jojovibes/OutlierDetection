@@ -32,7 +32,9 @@ def run(df):
     df["cadi_anomaly"] = is_anomaly
     df["score_cadi"] = f.scores
     df["cadi_cluster"] = f.clusters_affectations
-    df["cadi_explanation"] = f.explanations
+    df["cadi_explanation"] = [f.explanations.get(i, "") for i in range(len(df))]
+    # df["cadi_explanation"] = df["cadi_explanation"].apply(lambda x: x if isinstance(x, str) else "")
+    # df["cadi_explanation"] = df["cadi_explanation"].apply(lambda x: x if len(x) > 0 else "")
 
     return df
 
