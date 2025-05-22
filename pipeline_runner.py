@@ -2,6 +2,9 @@ import os
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 import cv2
+import numpy as np
+np.float = float  # TEMP fix for deprecated np.float
+
 
 from preprocess import extract_features
 from GMM import run as run_GMM
@@ -9,7 +12,8 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/Volumes/ronni/shanghaitech/testing/frames'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
+
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -26,8 +30,8 @@ def process_folder(folder_path):
         try:
             frame_idx = int(os.path.splitext(fname)[0])
 
-            # if frame_idx == 30: #small_batch testing
-            #     break
+            if frame_idx == 30: #small_batch testing
+                break
 
             img = cv2.imread(fpath)
             if img is None:

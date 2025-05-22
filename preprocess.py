@@ -2,8 +2,12 @@ import sys
 import torch
 import numpy as np
 
-sys.path.append('/Users/joelylin/Documents/GitHub/yolov7') 
-sys.path.append('/Users/joelylin/Documents/GitHub/BoT-SORT')
+# sys.path.append('/Users/joelylin/Documents/GitHub/yolov7') 
+# sys.path.append('/Users/joelylin/Documents/GitHub/BoT-SORT')
+
+sys.path.append('/home/jlin1/yolov7')
+sys.path.append('/home/jlin1/BoT-SORT')
+
 
 from models.experimental import attempt_load
 from utils.datasets import letterbox
@@ -11,6 +15,7 @@ from utils.general import non_max_suppression, scale_coords
 from tracker.bot_sort import BoTSORT
 import torch.nn.functional as F
 from utilz import select_feature_columns
+
 
 class Args:
     track_high_thresh = 0.6
@@ -35,7 +40,8 @@ class Args:
 
 args = Args()
 
-YOLOV7_WEIGHTS = '/Users/joelylin/Documents/GitHub/yolov7/yolov7.pt' 
+
+YOLOV7_WEIGHTS = '/home/jlin1/yolov7/yolov7.pt'
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 CONF_THRESHOLD = 0.25
 IOU_THRESHOLD = 0.45
