@@ -27,6 +27,7 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 for folder in os.listdir(ROOT_DIR):
     folder_path = os.path.join(ROOT_DIR, folder)
+
     if not os.path.isdir(folder_path):
         continue
 
@@ -38,9 +39,11 @@ for folder in os.listdir(ROOT_DIR):
         continue
 
     print(f"Processing: {folder}")
+
     df = pd.read_csv(csv_path)
+
     if isinstance(df['bbox'].iloc[0], str):
-        df['bbox'] = df['bbox'].apply(ast.literal_eval)
+        df['bbox'] = df['bbox'].apply(ast.literal_eval) # Convert string to list
 
     mask = np.load(mask_path)
     results = []

@@ -26,8 +26,8 @@ def process_folder(folder_path):
         try:
             frame_idx = int(os.path.splitext(fname)[0])
 
-            if frame_idx == 30: #small_batch testing
-                break
+            # if frame_idx == 30: #small_batch testing
+            #     break
 
             img = cv2.imread(fpath)
             if img is None:
