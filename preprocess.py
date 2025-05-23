@@ -112,7 +112,7 @@ def extract_features(img):
     pred = non_max_suppression(pred_raw, CONF_THRESHOLD, IOU_THRESHOLD)[0]
 
     if pred is None or not len(pred):
-        tracker.update(np.empty((0, 5)))
+        tracker.update(np.empty((0, 5)), img)
 
     pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], img.shape).round()
 
@@ -125,7 +125,12 @@ def extract_features(img):
 
     outputs = tracker.update(detections, img)
 
+    if outputs is None or len(outputs) == 0:
+        print("No tracked objects for this frame.")
+        return []
+
     for output in outputs:
+
         x1, y1, x2, y2 = output.tlbr
         track_id = int(output.track_id)
         bbox = [float(x1), float(y1), float(x2), float(y2)]
@@ -141,9 +146,14 @@ def extract_features(img):
                 max_iou = iou
                 matched_class_id = int(cls.item())
                 matched_conf = float(conf.item())
-                matched_class_probs = class_probs_vector[0][i].detach().cpu().numpy().tolist() 
+                # matched_class_probs = class_probs_vector[0][i].detach().cpu().numpy().tolist() 
+                if class_probs_vector and i < len(class_probs_vector[0]):
+                    matched_class_probs = class_probs_vector[0][i].detach().cpu().numpy().tolist()
+
 
         velocity, direction = compute_velocity_direction(bbox, prev_bboxes.get(track_id, bbox))
+
+        prev_bboxes[track_id] = bbox
 
         metadata.append({
             'class_id': matched_class_id,
@@ -154,9 +164,8 @@ def extract_features(img):
             'direction': direction,
             'class_probabilities': matched_class_probs 
         })
-
-    prev_bboxes[track_id] = bbox
-
+        
+        
     return metadata
 
 

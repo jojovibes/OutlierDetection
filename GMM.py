@@ -6,11 +6,22 @@ from utilz import select_feature_columns
 def run(df):
 
     X = df[select_feature_columns(df)]
+    n_samples = len(X)
 
-    gmm = GaussianMixture(n_components=4, covariance_type="full", random_state=42)
-    gmm.fit(X)
+    if n_samples < 2:
+        print(f"[GMM] Not enough samples for GMM (n={n_samples}). Returning NaNs.")
+        return pd.Series([np.nan] * n_samples, index=df.index, name='score_gmm')
 
-    log_likelihoods = gmm.score_samples(X)
+    n_components = min(4, n_samples)
 
-    return pd.Series(-log_likelihoods, index=df.index, name='score_gmm')   # lower = more anomalous
+    try:
+        gmm = GaussianMixture(n_components=4, covariance_type="full", random_state=42)
+        gmm.fit(X)
+        log_likelihoods = gmm.score_samples(X)
+
+        return pd.Series(-log_likelihoods, index=df.index, name='score_gmm')   # lower = more anomalous
+
+    except Exception as e:
+        print(f"[GMM] Error fitting GMM: {e}")
+        return pd.Series([np.nan] * n_samples, index=df.index, name='score_gmm')
 

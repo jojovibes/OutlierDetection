@@ -15,7 +15,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -56,6 +56,55 @@ def process_folder(folder_path):
             print(f"Error processing {fname}: {e}")
 
     return pd.DataFrame(data)
+
+LOG_FILE = os.path.join(ROOT_DIR, "completed_folders.log")
+print(f"logging path: {ROOT_DIR}")
+
+def main():
+    for folder_name in os.listdir(ROOT_DIR):
+        if folder_name == "output":
+            continue
+
+        folder_path = os.path.join(ROOT_DIR, folder_name)
+        if not os.path.isdir(folder_path):
+            continue
+        
+        print(f"Processing folder {folder_name} in a subprocess...")
+
+        try:
+            subprocess.run(["python", "process_single_folder.py", folder_name], check=True)
+
+            with open(LOG_FILE, "a") as f:
+                f.write(folder_name + "\n")
+            print(f"[{folder_name}] Logged as completed.")
+
+        except subprocess.CalledProcessError:
+            print(f"[{folder_name}] Failed — not logged.")
+
+
+# def main():
+#     for folder_name in os.listdir(ROOT_DIR):
+#         if folder_name == "output":
+#             continue
+
+#         folder_path = os.path.join(ROOT_DIR, folder_name)
+#         if not os.path.isdir(folder_path):
+#             continue
+        
+#         print(f"Processing folder {folder_name} in a subprocess...")
+
+#         try:
+#             subprocess.run(["python", "process_single_folder.py", folder_name], check=True)
+
+#             with open(LOG_FILE, "a") as f:
+#                     f.write(folder_name + "\n")
+#                 print(f"[{folder_name}] Logged as completed.")
+
+#         except subprocess.CalledProcessError:
+#             print(f"[{folder_name}] Failed — not logged.")
+
+if __name__ == "__main__":
+    main()
 
 # def main():
 #     for folder_name in os.listdir(ROOT_DIR):
@@ -119,18 +168,3 @@ def process_folder(folder_path):
 #         del df, folder_path, folder_name
 #         gc.collect()
 #         log_mem("After GC for folder")
-
-def main():
-    for folder_name in os.listdir(ROOT_DIR):
-        if folder_name == "output":
-            continue
-
-        folder_path = os.path.join(ROOT_DIR, folder_name)
-        if not os.path.isdir(folder_path):
-            continue
-
-        print(f"Processing folder {folder_name} in a subprocess...")
-        subprocess.run(["python", "process_single_folder.py", folder_name], check=True)
-
-if __name__ == "__main__":
-    main()

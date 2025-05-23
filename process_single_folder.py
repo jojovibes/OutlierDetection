@@ -15,7 +15,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 def log_mem(stage):
@@ -61,6 +61,9 @@ def process_folder(folder_name):
 
     log_mem("After DataFrame")
 
+    features_path = os.path.join(OUTPUT_DIR, f"{folder_name}_features.csv")
+    scored_path = os.path.join(OUTPUT_DIR, f"{folder_name}_scored.csv")
+
     df = derive_features(df)
     class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
     class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
@@ -71,16 +74,24 @@ def process_folder(folder_name):
     scale_cols = [col for col in df.columns if col not in exclude_cols]
     df[scale_cols] = StandardScaler().fit_transform(df[scale_cols])
 
-    df.to_csv(os.path.join(OUTPUT_DIR, f"{folder_name}_features.csv"), index=False)
+    df.to_csv(features_path, index=False)
 
     # Uncomment scoring below as needed:
-    # df['score_if'] = run_IF(df)
-    # df['score_gmm'] = run_GMM(df)
-    # df = run_cadi(df)
-    # df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
+    df['score_if'] = run_IF(df)
+    df['score_gmm'] = run_GMM(df)
+    df = run_cadi(df)
+    df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
 
-    df.to_csv(os.path.join(OUTPUT_DIR, f"{folder_name}_scored.csv"), index=False)
-    print(f"[{folder_name}] Done")
+    df.to_csv(scored_path, index=False)
+
+    if os.path.exists(scored_path):
+        try:
+            os.remove(features_path)
+            print(f"[{folder_name}] Done — features file removed.")
+        except Exception as e:
+            print(f"[{folder_name}] Scored saved but failed to delete features file: {e}")
+    else:
+        print(f"[{folder_name}] Warning: scored CSV not saved, features retained.")
 
 if __name__ == "__main__":
     folder = sys.argv[1]

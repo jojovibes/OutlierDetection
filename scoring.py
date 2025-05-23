@@ -2,6 +2,12 @@ import os
 import numpy as np
 import pandas as pd
 import ast
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+# scaler = MinMaxScaler()
+# normalized_scores = scaler.fit_transform(scores.reshape(-1, 1))
+
 
 def compute_mask_iou(bbox, mask):
     x1, y1, x2, y2 = map(int, bbox)
@@ -24,6 +30,8 @@ def compute_mask_iou(bbox, mask):
 ROOT_DIR = "/path/to/dataset" 
 OUTPUT_DIR = os.path.join(ROOT_DIR, "comparison_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+final`Ω = []
 
 for folder in os.listdir(ROOT_DIR):
     folder_path = os.path.join(ROOT_DIR, folder)
@@ -71,6 +79,26 @@ for folder in os.listdir(ROOT_DIR):
                 })
 
     out_df = pd.DataFrame(results)
+    all_results.append(out_df)
     out_path = os.path.join(OUTPUT_DIR, f"{folder}_iou_comparison.csv")
     out_df.to_csv(out_path, index=False)
     print(f"Saved: {out_path}")
+
+final_df = pd.concat(all_results, ignore_index=True)
+
+
+# Load the aggregated results
+mask_anomalies = final_df['mask_anomaly']
+cadi_anomalies = final_df['cadi_anomaly']
+
+from sklearn.metrics import roc_auc_score, average_precision_score
+
+auc = roc_auc_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
+ap = average_precision_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
+precision = precision_score(mask_anomalies, cadi_anomalies)
+recall = recall_score(mask_anomalies, cadi_anomalies)
+f1 = f1_score(mask_anomalies, cadi_anomalies)
+
+print(f"Precision: {precision:.3f}")
+print(f"Recall:    {recall:.3f}")
+print(f"F1 Score:  {f1:.3f}")
