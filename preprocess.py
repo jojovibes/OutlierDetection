@@ -1,6 +1,7 @@
 import sys
 import torch
 import numpy as np
+import gc
 
 # sys.path.append('/Users/joelylin/Documents/GitHub/yolov7') 
 # sys.path.append('/Users/joelylin/Documents/GitHub/BoT-SORT')
@@ -58,13 +59,25 @@ model.eval()
 tracker = BoTSORT(args,frame_rate=30)
 
 def preprocess_frame(img, img_size=640):
-    img = letterbox(img, img_size, stride=32, auto=True)[0]
-    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB
+    original_shape = img.shape[:2]  # (H, W)
+    img = letterbox(img, (img_size, img_size), auto=False, scaleFill=True)[0]
+    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC → CHW
     img = np.ascontiguousarray(img)
-    img = torch.from_numpy(img).to(DEVICE).float() / 255.0
-    if img.ndimension() == 3:
-        img = img.unsqueeze(0)
-    return img
+    img_tensor = torch.from_numpy(img).to(DEVICE).float() / 255.0
+    if img_tensor.ndimension() == 3:
+        img_tensor = img_tensor.unsqueeze(0)
+    return img_tensor, original_shape
+
+
+# def preprocess_frame(img, img_size=640):
+#     # img = letterbox(img, (img_size, img_size), stride=32, auto=True)[0]
+#     img = letterbox(img, (640, 640), auto=False, scaleFill=True)[0]
+#     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB
+#     img = np.ascontiguousarray(img)
+#     img = torch.from_numpy(img).to(DEVICE).float() / 255.0
+#     if img.ndimension() == 3:
+#         img = img.unsqueeze(0)
+#     return img
 
 def compute_velocity_direction(current_bbox, prev_bbox, fps=30):
     dx = (current_bbox[0] + current_bbox[2]) / 2 - (prev_bbox[0] + prev_bbox[2]) / 2
@@ -91,9 +104,15 @@ def compute_iou(box1, box2):
 #     raise FileNotFoundError(f"Video directory {video_path} not found!")
 
 def extract_features(img):
-
-    img_tensor = preprocess_frame(img, IMG_SIZE)
-    pred_raw = model(img_tensor, augment=False)[0]
+    img_tensor, original_shape = preprocess_frame(img, IMG_SIZE)
+    try:
+        with torch.no_grad():
+            pred_raw = model(img_tensor, augment=False)[0]
+    except Exception as e:
+            import traceback
+            print("Error in YOLOv7 forward pass:")
+            traceback.print_exc()
+            return []
 
     prev_bboxes = {}
     metadata = []
@@ -109,12 +128,15 @@ def extract_features(img):
         class_probs = conf * cls_scores  # YOLO-style: objectness * class_prob
         class_probs_vector.append(class_probs)
 
+
     pred = non_max_suppression(pred_raw, CONF_THRESHOLD, IOU_THRESHOLD)[0]
 
     if pred is None or not len(pred):
         tracker.update(np.empty((0, 5)), img)
 
-    pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], img.shape).round()
+    # pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], img.shape).round()
+    pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], original_shape).round()
+
 
     detections = []
     for *xyxy, conf, cls in pred:
@@ -128,6 +150,7 @@ def extract_features(img):
     if outputs is None or len(outputs) == 0:
         print("No tracked objects for this frame.")
         return []
+
 
     for output in outputs:
 
@@ -164,8 +187,15 @@ def extract_features(img):
             'direction': direction,
             'class_probabilities': matched_class_probs 
         })
-        
-        
+    
+    print(f"Extracted {len(metadata)} object(s) from frame")
+
+    # if not isinstance(matched_class_probs, list) or len(matched_class_probs) != EXPECTED_CLASSES:
+    #     print(f"[Frame] Invalid class_probs: {matched_class_probs}")
+
+    torch.cuda.empty_cache() 
+    gc.collect()
+
     return metadata
 
 

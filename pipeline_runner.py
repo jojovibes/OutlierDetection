@@ -6,6 +6,8 @@ import numpy as np
 import gc
 import psutil
 import subprocess
+import traceback
+
 
 np.float = float  # TEMP fix for deprecated np.float
 
@@ -15,12 +17,10 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-def log_mem(stage):
-    print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
 
 def process_folder(folder_path):
     data = []
@@ -50,6 +50,7 @@ def process_folder(folder_path):
 
             del img
             del features_list
+            torch.cuda.empty_cache()  # Only if using CUDA
             gc.collect()
 
         except Exception as e:
@@ -57,7 +58,7 @@ def process_folder(folder_path):
 
     return pd.DataFrame(data)
 
-LOG_FILE = os.path.join(ROOT_DIR, "completed_folders.log")
+LOG_FILE = os.path.join(ROOT_DIR, "completed_folders_1.log")
 print(f"logging path: {ROOT_DIR}")
 
 def main():
@@ -78,8 +79,9 @@ def main():
                 f.write(folder_name + "\n")
             print(f"[{folder_name}] Logged as completed.")
 
-        except subprocess.CalledProcessError:
-            print(f"[{folder_name}] Failed — not logged.")
+        except subprocess.CalledProcessError as e:
+            print(f"[{folder_name}] crashed with exit code {e.returncode}, skipping.")
+
 
 
 # def main():

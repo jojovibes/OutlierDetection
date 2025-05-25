@@ -15,7 +15,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 def log_mem(stage):
@@ -24,6 +24,7 @@ def log_mem(stage):
 def process_folder(folder_name):
     folder_path = os.path.join(ROOT_DIR, folder_name)
     data = []
+    
 
     for fname in sorted(os.listdir(folder_path)):
         if fname.startswith("._") or not fname.endswith(".jpg"):
@@ -32,15 +33,21 @@ def process_folder(folder_name):
         fpath = os.path.join(folder_path, fname)
         try:
             frame_idx = int(os.path.splitext(fname)[0])
-            if frame_idx == 30:
-                break
+            # if frame_idx == 30:
+            #     break
+            print(f"Processing frame: {frame_idx} — {fname}")
+            # print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
 
             img = cv2.imread(fpath)
             if img is None:
+                print(f"[Frame {frame_idx}] Warning: image not readable")
                 continue
 
             features_list = extract_features(img)
+
+            print("features extratced")
             if not features_list:
+                print(f"[Frame {frame_idx}] Warning: no features extracted")
                 continue
 
             for features in features_list:
@@ -52,7 +59,8 @@ def process_folder(folder_name):
             gc.collect()
 
         except Exception as e:
-            print(f"Error processing {fname}: {e}")
+            import traceback
+            print(f"[Frame {frame_idx}] Error: {fname}\n{traceback.format_exc()}")
 
     df = pd.DataFrame(data)
     if df.empty:
@@ -63,11 +71,27 @@ def process_folder(folder_name):
 
     features_path = os.path.join(OUTPUT_DIR, f"{folder_name}_features.csv")
     scored_path = os.path.join(OUTPUT_DIR, f"{folder_name}_scored.csv")
+    original_bbox = df[['bbox']].copy()
 
     df = derive_features(df)
+
+    # class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
+    # class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
+    # df[class_probs.columns] = class_probs
+    # Save a copy of bbox (and optionally coordinates if needed)
+
+    # Filter out rows with None or invalid class probabilities
+    df = df[df['class_probabilities'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
+
+    # Log how many rows were dropped
+    print(f"[Filter] Retained {len(df)} rows after class_probabilities check.")
+
+    # Expand into columns
     class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
     class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
     df[class_probs.columns] = class_probs
+
+
     df.drop(columns=['bbox', 'x1', 'y1', 'x2', 'y2'], inplace=True, errors='ignore')
 
     exclude_cols = ['track_id', 'filename', 'frame_idx']
@@ -77,10 +101,21 @@ def process_folder(folder_name):
     df.to_csv(features_path, index=False)
 
     # Uncomment scoring below as needed:
-    df['score_if'] = run_IF(df)
-    df['score_gmm'] = run_GMM(df)
-    df = run_cadi(df)
-    df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
+    # df['score_if'] = run_IF(df)
+    # df['score_gmm'] = run_GMM(df)
+    # df = run_cadi(df)
+    # df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
+    try:
+        df['score_if'] = run_IF(df)
+        df['score_gmm'] = run_GMM(df)
+        df = run_cadi(df)
+        df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
+    except Exception as e:
+        print(f"Scoring failed: {e}")
+        return
+
+    df = pd.concat([df, original_bbox], axis=1)
+    df = df.copy() 
 
     df.to_csv(scored_path, index=False)
 

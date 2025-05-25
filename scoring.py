@@ -26,70 +26,75 @@ def compute_mask_iou(bbox, mask):
 
     return intersection / union if union > 0 else 0.0
 
-
-ROOT_DIR = "/path/to/dataset" 
-OUTPUT_DIR = os.path.join(ROOT_DIR, "comparison_results")
+ROOT_DIR = "/home/jlin1/OutlierDetection/testing"
+SCORE_DIR = os.path.join(ROOT_DIR, "small_batch/output")
+MASKS_DIR = "/home/jlin1/OutlierDetection/testing/test_pixel_mask"
+FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
+OUTPUT_DIR = os.path.join(SCORE_DIR, "comparison_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-final`Ω = []
-
-for folder in os.listdir(ROOT_DIR):
-    folder_path = os.path.join(ROOT_DIR, folder)
-
-    if not os.path.isdir(folder_path):
+for score_file in os.listdir(SCORE_DIR):
+    if not score_file.endswith("_scored.csv") or score_file.startswith('.'):
         continue
 
-    csv_path = os.path.join(folder_path, f"{folder}_features.csv")
-    mask_path = os.path.join(folder_path, f"{folder}.npy")
+    video_id = score_file.replace("_scored.csv", "")
+    csv_path = os.path.join(SCORE_DIR, score_file)
+    npy_path = os.path.join(MASKS_DIR, video_id + ".npy")
 
-    if not os.path.exists(csv_path) or not os.path.exists(mask_path):
-        print(f"Missing CSV or mask for {folder}")
+    if not os.path.exists(npy_path):
+        print(f"Mask file not found for {video_id}")
         continue
 
-    print(f"Processing: {folder}")
+    try:
+        df = pd.read_csv(csv_path)
+        mask_array = np.load(npy_path)  # shape: (num_frames, H, W)
 
-    df = pd.read_csv(csv_path)
+        if 'bbox' not in df.columns or 'frame_idx' not in df.columns or 'cadi_anomaly' not in df.columns:
+            print(f"Missing required columns in {score_file}")
+            print(f"")
+            continue
 
-    if isinstance(df['bbox'].iloc[0], str):
-        df['bbox'] = df['bbox'].apply(ast.literal_eval) # Convert string to list
+        if isinstance(df['bbox'].iloc[0], str):
+            df['bbox'] = df['bbox'].apply(ast.literal_eval)
 
-    mask = np.load(mask_path)
-    results = []
+        results = []
 
-    for frame_idx in range(mask.shape[0]):
-        frame_mask = mask[frame_idx]
-        has_mask_anomaly = frame_mask.any()
+        for frame_idx in range(mask_array.shape[0]):
+            frame_mask = mask_array[frame_idx]
+            has_mask_anomaly = frame_mask.any()
 
-        frame_objs = df[df['frame_idx'] == frame_idx]
-        has_cadi_anomaly = frame_objs['cadi_anomaly'].sum() > 0
+            frame_objs = df[df['frame_idx'] == frame_idx]
+            # has_score_anomaly = (frame_objs['cadi_anomaly'] == 1).any()
+            # print(f"Processing video {video_id}, frame {frame_idx} - Mask anomaly: {has_mask_anomaly}, Score anomaly: {has_score_anomaly}")
 
-        if has_mask_anomaly or has_cadi_anomaly:
-            for _, row in frame_objs.iterrows():
-                bbox = row['bbox']
-                is_cadi_anomaly = row['cadi_anomaly'] == 1
-                iou = compute_mask_iou(bbox, frame_mask)
+            for _, row in frame_objs.iterrows():  # only iterate relevant rows
+                has_score_anomaly = int(row['cadi_anomaly'] == 1)
+
+                if not has_mask_anomaly and not has_score_anomaly:
+                    continue
+                
+                iou = compute_mask_iou(row['bbox'], frame_mask)
 
                 results.append({
+                    "video_id": video_id,
                     "frame_idx": frame_idx,
                     "track_id": row.get("track_id", None),
-                    "bbox": bbox,
-                    "cadi_anomaly": int(is_cadi_anomaly),
-                    "mask_anomaly": int(iou > 0),
+                    "bbox": row['bbox'],
+                    "cadi_anomaly": int(row['cadi_anomaly']),
+                    "mask_anomaly": int(has_mask_anomaly),
                     "iou": iou
                 })
 
-    out_df = pd.DataFrame(results)
-    all_results.append(out_df)
-    out_path = os.path.join(OUTPUT_DIR, f"{folder}_iou_comparison.csv")
-    out_df.to_csv(out_path, index=False)
-    print(f"Saved: {out_path}")
+        # Save results for this file
+        if results:
+            result_df = pd.DataFrame(results)
+            output_csv = os.path.join(OUTPUT_DIR, f"{video_id}_iou_comparison.csv")
+            result_df.to_csv(output_csv, index=False)
+            print(f"Saved: {output_csv}")
 
-final_df = pd.concat(all_results, ignore_index=True)
+    except Exception as e:
+        print(f"Error processing {score_file}: {e}")
 
-
-# Load the aggregated results
-mask_anomalies = final_df['mask_anomaly']
-cadi_anomalies = final_df['cadi_anomaly']
 
 from sklearn.metrics import roc_auc_score, average_precision_score
 
