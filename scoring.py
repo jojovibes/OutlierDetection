@@ -47,7 +47,7 @@ for score_file in os.listdir(SCORE_DIR):
 
     try:
         df = pd.read_csv(csv_path)
-        mask_array = np.load(npy_path)  # shape: (num_frames, H, W)
+        mask_array = np.load(npy_path) 
 
         if 'bbox' not in df.columns or 'frame_idx' not in df.columns or 'cadi_anomaly' not in df.columns:
             print(f"Missing required columns in {score_file}")
@@ -67,7 +67,7 @@ for score_file in os.listdir(SCORE_DIR):
             # has_score_anomaly = (frame_objs['cadi_anomaly'] == 1).any()
             # print(f"Processing video {video_id}, frame {frame_idx} - Mask anomaly: {has_mask_anomaly}, Score anomaly: {has_score_anomaly}")
 
-            for _, row in frame_objs.iterrows():  # only iterate relevant rows
+            for _, row in frame_objs.iterrows():  
                 has_score_anomaly = int(row['cadi_anomaly'] == 1)
 
                 if not has_mask_anomaly and not has_score_anomaly:
@@ -85,7 +85,6 @@ for score_file in os.listdir(SCORE_DIR):
                     "iou": iou
                 })
 
-        # Save results for this file
         if results:
             result_df = pd.DataFrame(results)
             output_csv = os.path.join(OUTPUT_DIR, f"{video_id}_iou_comparison.csv")

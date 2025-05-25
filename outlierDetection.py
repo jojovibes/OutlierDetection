@@ -29,40 +29,11 @@ def run(df):
     is_anomaly = np.zeros(len(df), dtype=int)
     is_anomaly[f.anomalies] = 1
 
+    print(df.describe())
+
     df["cadi_anomaly"] = is_anomaly
     df["score_cadi"] = f.scores
     df["cadi_cluster"] = f.clusters_affectations
     df["cadi_explanation"] = [f.explanations.get(i, "") for i in range(len(df))]
-    # df["cadi_explanation"] = df["cadi_explanation"].apply(lambda x: x if isinstance(x, str) else "")
-    # df["cadi_explanation"] = df["cadi_explanation"].apply(lambda x: x if len(x) > 0 else "")
 
     return df
-
-    # X = df[select_feature_columns(df)].to_numpy()
-
-    # dataset = Dataset(X)
-
-    # f = Forest(dataset, nbT=NB_TREES, method="cadi", maxHeight=MAX_HEIGHT)
-    # f.build()
-
-    # f.anomalyDetection(binary=True, contamination_rate=CONTAMINATION_RATE)
-    # f.clustering()
-    # f.explain_anomalies()
-
-    # feature_cols = select_feature_columns(df)
-    # df = pd.DataFrame(dataset.data, columns=feature_cols)
-
-    # is_anomaly = np.zeros(len(df), dtype=int)
-    # is_anomaly[f.anomalies] = 1
-
-    # df["cadi_anomaly"] = is_anomaly
-    # df["cadi_score"] = f.scores
-    # df["cadi_cluster"] = f.clusters_affectations # cluster labels (-1 for anomalies)
-    # df["cadi_explanation"] = [f.explanations.get(i, "") for i in range(len(df))]
-
-    # return df
-
-
-    # os.makedirs("outputs", exist_ok=True)
-    # df.to_csv(OUTPUT_PATH, index=False)
-    # print(f"output path: {OUTPUT_PATH}")

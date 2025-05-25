@@ -18,13 +18,9 @@ from outlierDetection import run as run_cadi
 ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
-def log_mem(stage):
-    print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
-
 def process_folder(folder_name):
     folder_path = os.path.join(ROOT_DIR, folder_name)
     data = []
-    
 
     for fname in sorted(os.listdir(folder_path)):
         if fname.startswith("._") or not fname.endswith(".jpg"):
@@ -45,7 +41,6 @@ def process_folder(folder_name):
 
             features_list = extract_features(img)
 
-            print("features extratced")
             if not features_list:
                 print(f"[Frame {frame_idx}] Warning: no features extracted")
                 continue
@@ -67,26 +62,13 @@ def process_folder(folder_name):
         print("No data.")
         return
 
-    log_mem("After DataFrame")
-
     features_path = os.path.join(OUTPUT_DIR, f"{folder_name}_features.csv")
     scored_path = os.path.join(OUTPUT_DIR, f"{folder_name}_scored.csv")
     original_bbox = df[['bbox']].copy()
 
     df = derive_features(df)
-
-    # class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
-    # class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
-    # df[class_probs.columns] = class_probs
-    # Save a copy of bbox (and optionally coordinates if needed)
-
-    # Filter out rows with None or invalid class probabilities
     df = df[df['class_probabilities'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
 
-    # Log how many rows were dropped
-    print(f"[Filter] Retained {len(df)} rows after class_probabilities check.")
-
-    # Expand into columns
     class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
     class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
     df[class_probs.columns] = class_probs
@@ -100,11 +82,6 @@ def process_folder(folder_name):
 
     df.to_csv(features_path, index=False)
 
-    # Uncomment scoring below as needed:
-    # df['score_if'] = run_IF(df)
-    # df['score_gmm'] = run_GMM(df)
-    # df = run_cadi(df)
-    # df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
     try:
         df['score_if'] = run_IF(df)
         df['score_gmm'] = run_GMM(df)
@@ -118,6 +95,9 @@ def process_folder(folder_name):
     df = df.copy() 
 
     df.to_csv(scored_path, index=False)
+    print(f"{folder_name}_scored.csv has been saved")
+
+
 
     if os.path.exists(scored_path):
         try:

@@ -1,6 +1,7 @@
 import pandas as pd
 from sklearn.mixture import GaussianMixture
 from utilz import select_feature_columns
+from sklearn.preprocessing import MinMaxScaler
 
 
 def run(df):
@@ -18,8 +19,10 @@ def run(df):
         gmm = GaussianMixture(n_components=4, covariance_type="full", random_state=42)
         gmm.fit(X)
         log_likelihoods = gmm.score_samples(X)
+        anomaly_score = -log_likelihood 
+        score_normalized = MinMaxScaler().fit_transform(anomaly_score.reshape(-1, 1)).flatten()
 
-        return pd.Series(-log_likelihoods, index=df.index, name='score_gmm')   # lower = more anomalous
+        return pd.Series(score_normalized, index=df.index, name='score_gmm')   # lower = more anomalous
 
     except Exception as e:
         print(f"[GMM] Error fitting GMM: {e}")

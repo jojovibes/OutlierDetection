@@ -58,26 +58,25 @@ model.eval()
 
 tracker = BoTSORT(args,frame_rate=30)
 
-def preprocess_frame(img, img_size=640):
-    original_shape = img.shape[:2]  # (H, W)
-    img = letterbox(img, (img_size, img_size), auto=False, scaleFill=True)[0]
-    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC → CHW
-    img = np.ascontiguousarray(img)
-    img_tensor = torch.from_numpy(img).to(DEVICE).float() / 255.0
-    if img_tensor.ndimension() == 3:
-        img_tensor = img_tensor.unsqueeze(0)
-    return img_tensor, original_shape
-
-
 # def preprocess_frame(img, img_size=640):
-#     # img = letterbox(img, (img_size, img_size), stride=32, auto=True)[0]
-#     img = letterbox(img, (640, 640), auto=False, scaleFill=True)[0]
-#     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB
+#     original_shape = img.shape[:2]  # (H, W)
+#     img = letterbox(img, (img_size, img_size), auto=False, scaleFill=True)[0]
+#     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC → CHW
 #     img = np.ascontiguousarray(img)
-#     img = torch.from_numpy(img).to(DEVICE).float() / 255.0
-#     if img.ndimension() == 3:
-#         img = img.unsqueeze(0)
-#     return img
+#     img_tensor = torch.from_numpy(img).to(DEVICE).float() / 255.0
+#     if img_tensor.ndimension() == 3:
+#         img_tensor = img_tensor.unsqueeze(0)
+#     return img_tensor, original_shape
+
+def preprocess_frame(img, img_size=640):
+    # img = letterbox(img, (img_size, img_size), stride=32, auto=True)[0]
+    img = letterbox(img, (640, 640), auto=False, scaleFill=True)[0]
+    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB
+    img = np.ascontiguousarray(img)
+    img = torch.from_numpy(img).to(DEVICE).float() / 255.0
+    if img.ndimension() == 3:
+        img = img.unsqueeze(0)
+    return img
 
 def compute_velocity_direction(current_bbox, prev_bbox, fps=30):
     dx = (current_bbox[0] + current_bbox[2]) / 2 - (prev_bbox[0] + prev_bbox[2]) / 2
@@ -98,13 +97,9 @@ def compute_iou(box1, box2):
     return iou
 
 
-# video_id = "01_0016"
-# video_path = os.path.join(FRAMES_DIR, video_id)
-# if not os.path.isdir(video_path):
-#     raise FileNotFoundError(f"Video directory {video_path} not found!")
-
 def extract_features(img):
-    img_tensor, original_shape = preprocess_frame(img, IMG_SIZE)
+    # img_tensor, original_shape = preprocess_frame(img, IMG_SIZE)
+    img_tensor = preprocess_frame(img, IMG_SIZE)
     try:
         with torch.no_grad():
             pred_raw = model(img_tensor, augment=False)[0]
@@ -124,7 +119,7 @@ def extract_features(img):
             continue
         conf = det[:, 4:5]
         cls_logits = det[:, 5:]
-        cls_scores = F.sigmoid(cls_logits)  # Apply sigmoid to logits
+        cls_scores = F.sigmoid(cls_logits) 
         class_probs = conf * cls_scores  # YOLO-style: objectness * class_prob
         class_probs_vector.append(class_probs)
 
@@ -134,8 +129,8 @@ def extract_features(img):
     if pred is None or not len(pred):
         tracker.update(np.empty((0, 5)), img)
 
-    # pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], img.shape).round()
-    pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], original_shape).round()
+    pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], img.shape).round()
+    # pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], original_shape).round()
 
 
     detections = []
@@ -187,23 +182,9 @@ def extract_features(img):
             'direction': direction,
             'class_probabilities': matched_class_probs 
         })
-    
-    print(f"Extracted {len(metadata)} object(s) from frame")
-
-    # if not isinstance(matched_class_probs, list) or len(matched_class_probs) != EXPECTED_CLASSES:
-    #     print(f"[Frame] Invalid class_probs: {matched_class_probs}")
 
     torch.cuda.empty_cache() 
     gc.collect()
 
     return metadata
 
-
-
-    # print(f"Frame: {frame_idx}, Class ID: {matched_class_id}, Confidence: {matched_conf:.2f}, Track ID: {track_id}, Velocity: {velocity:.2f}, Direction: {direction:.2f}")
-
-    # output_file = os.path.join(OUTPUT_METADATA, f"{video_id}_metadata.json")
-    # with open(output_file, 'w') as f:
-    #     json.dump(metadata, f, indent=2)
-    # print(f"\n Saved metadata for {video_id} to {output_file}")
-   
