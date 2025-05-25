@@ -128,6 +128,8 @@ def extract_features(img):
         matched_class_probs = None
         max_iou = 0
 
+        #check
+
         for i, (*xyxy, conf, cls) in enumerate(pred):
             pred_box = [float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])]
             iou = compute_iou(bbox, pred_box)
@@ -140,7 +142,7 @@ def extract_features(img):
         velocity, direction = compute_velocity_direction(bbox, prev_bboxes.get(track_id, bbox))
 
         metadata.append({
-            'class_id': matched_class_id,
+            'class_id': class_id, #check
             'confidence': matched_conf,
             'track_id': track_id,
             'bbox': bbox,

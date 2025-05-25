@@ -9,7 +9,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/Volumes/ronni/shanghaitech/testing/frames'
+ROOT_DIR = '/Volumes/ronni/shanghaitech/testing/small_batch'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -26,8 +26,8 @@ def process_folder(folder_path):
         try:
             frame_idx = int(os.path.splitext(fname)[0])
 
-            # if frame_idx == 30: #small_batch testing
-            #     break
+            if frame_idx == 30: #small_batch testing
+                break
 
             img = cv2.imread(fpath)
             if img is None:
@@ -68,10 +68,10 @@ def main():
         class_prob_df.columns = [f'class_prob_{i}' for i in range(class_prob_df.shape[1])]
         df = pd.concat([df, class_prob_df], axis=1)
         df.drop(columns=['class_probabilities'], inplace=True)
-        df.drop(columns=['bbox'], inplace=True)
+        # df.drop(columns=['bbox'], inplace=True)
         df.drop(columns=['x1', 'y1', 'x2', 'y2'], inplace=True)
 
-        exclude_cols = ['track_id', 'filename', 'frame_idx']
+        exclude_cols = ['track_id', 'filename', 'frame_idx', 'bbox']
         scale_cols = [col for col in df.columns if col not in exclude_cols]
 
         scaler = StandardScaler()
@@ -85,7 +85,7 @@ def main():
         df = run_cadi(df)
         df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
 
-        out_path = os.path.join(OUTPUT_DIR, f"{folder_name}_scored.csv")
+        out_path = os.path.join(OUTPUT_DIR, f"scores/{folder_name}_scored.csv")
         df.to_csv(out_path, index=False)
         print(f"Saved scored CSV to {out_path}")
 
