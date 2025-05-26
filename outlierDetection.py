@@ -3,11 +3,12 @@ from cadi.Src.forest import Forest
 from cadi.Src.dataset import *
 from utilz import select_feature_columns
 import tempfile
+import numpy as np
 
 def run(df):
 
     NB_TREES = 100
-    MAX_HEIGHT = 256
+    MAX_HEIGHT = 1000
     CONTAMINATION_RATE = 0.05
 
     feature_cols = select_feature_columns(df)
@@ -24,16 +25,21 @@ def run(df):
     f.clustering()
     f.explain_anomalies()
 
-    # df = pd.DataFrame(dataset.data, columns=feature_cols)
+    # df = pd.DataFrame(dataset.data)
 
-    is_anomaly = np.zeros(len(df), dtype=int)
-    is_anomaly[f.anomalies] = 1
+    df = df.reset_index(drop=True)
 
-    print(df.describe())
+    # is_anomaly = np.zeros(len(df), dtype=int)
+    # is_anomaly[f.anomalies] = 1
 
-    df["cadi_anomaly"] = is_anomaly
+    # print(df.describe())
+
+    # df["cadi_anomaly"] = is_anomaly
+    df["cadi_anomaly"] = 0
+    df.loc[f.anomalies, "cadi_anomaly"] = 1
     df["score_cadi"] = f.scores
     df["cadi_cluster"] = f.clusters_affectations
     df["cadi_explanation"] = [f.explanations.get(i, "") for i in range(len(df))]
+
 
     return df

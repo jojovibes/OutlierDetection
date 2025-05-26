@@ -1,6 +1,7 @@
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 from utilz import select_feature_columns
+import numpy as np
 
 def run(df):
 

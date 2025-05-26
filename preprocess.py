@@ -48,9 +48,6 @@ CONF_THRESHOLD = 0.25
 IOU_THRESHOLD = 0.45
 IMG_SIZE = 640
 
-# FRAMES_DIR = '/Volumes/ronni/shanghaitech/testing/frames'
-# OUTPUT_METADATA = '/Volumes/ronni/shanghaitech/metadata_output'
-# os.makedirs(OUTPUT_METADATA, exist_ok=True)
 
 model = attempt_load(YOLOV7_WEIGHTS, map_location=DEVICE)
 # model = attempt_load(YOLOV7_WEIGHTS, map_location=DEVICE, weights_only=False)

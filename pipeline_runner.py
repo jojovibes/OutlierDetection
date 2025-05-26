@@ -17,7 +17,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -32,7 +32,7 @@ def process_folder(folder_path):
         fpath = os.path.join(folder_path, fname)
         try:
             frame_idx = int(os.path.splitext(fname)[0])
-            # if frame_idx == 30:
+            # if frame_idx == 100:
             #     break
 
             img = cv2.imread(fpath)

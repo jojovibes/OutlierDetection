@@ -15,7 +15,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 def process_folder(folder_name):
@@ -31,7 +31,7 @@ def process_folder(folder_name):
             frame_idx = int(os.path.splitext(fname)[0])
             # if frame_idx == 30:
             #     break
-            print(f"Processing frame: {frame_idx} — {fname}")
+            # print(f"Processing frame: {frame_idx} — {fname}")
             # print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
 
             img = cv2.imread(fpath)
@@ -87,6 +87,7 @@ def process_folder(folder_name):
         df['score_gmm'] = run_GMM(df)
         df = run_cadi(df)
         df['score_avg'] = (df['score_gmm'] + df['score_cadi']) / 2
+
     except Exception as e:
         print(f"Scoring failed: {e}")
         return
@@ -96,7 +97,6 @@ def process_folder(folder_name):
 
     df.to_csv(scored_path, index=False)
     print(f"{folder_name}_scored.csv has been saved")
-
 
 
     if os.path.exists(scored_path):
