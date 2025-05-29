@@ -27,7 +27,7 @@ def compute_mask_iou(bbox, mask):
     return intersection / union if union > 0 else 0.0
 
 ROOT_DIR = "/home/jlin1/OutlierDetection/testing"
-SCORE_DIR = os.path.join(ROOT_DIR, "small_batch/output")
+SCORE_DIR = os.path.join(ROOT_DIR, "frames/output")
 MASKS_DIR = "/home/jlin1/OutlierDetection/testing/test_pixel_mask"
 FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
 OUTPUT_DIR = os.path.join(SCORE_DIR, "comparison_results")
