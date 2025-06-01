@@ -32,8 +32,6 @@ def process_folder(folder_path):
         fpath = os.path.join(folder_path, fname)
         try:
             frame_idx = int(os.path.splitext(fname)[0])
-            # if frame_idx == 100:
-            #     break
 
             img = cv2.imread(fpath)
             if img is None:
@@ -58,7 +56,7 @@ def process_folder(folder_path):
 
     return pd.DataFrame(data)
 
-LOG_FILE = os.path.join(ROOT_DIR, "completed_folders_1.log")
+LOG_FILE = os.path.join(ROOT_DIR, "completed_folders.log")
 
 
 def main():

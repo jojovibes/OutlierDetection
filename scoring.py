@@ -4,9 +4,21 @@ import pandas as pd
 import ast
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import roc_auc_score, average_precision_score
 
 # scaler = MinMaxScaler()
 # normalized_scores = scaler.fit_transform(scores.reshape(-1, 1))
+
+def compute_rbdc(df, iou_threshold=0.3):
+    tp = ((df['cadi_anomaly'] == 1) & (df['iou'] >= iou_threshold) & (df['mask_anomaly'] == 1)).sum()
+    fp = ((df['cadi_anomaly'] == 1) & ((df['iou'] < iou_threshold) | (df['mask_anomaly'] == 0))).sum()
+    fn = ((df['cadi_anomaly'] == 0) & (df['mask_anomaly'] == 1)).sum()
+
+    precision = tp / (tp + fp + 1e-10)
+    recall = tp / (tp + fn + 1e-10)
+    f1 = 2 * precision * recall / (precision + recall + 1e-10)
+
+    return precision, recall, f1
 
 
 def compute_mask_iou(bbox, mask):
@@ -27,15 +39,20 @@ def compute_mask_iou(bbox, mask):
     return intersection / union if union > 0 else 0.0
 
 ROOT_DIR = "/home/jlin1/OutlierDetection/testing"
-SCORE_DIR = os.path.join(ROOT_DIR, "frames/output")
+SCORE_DIR = os.path.join("/home/jlin1/OutlierDetection/testing/small_batch/output")
 MASKS_DIR = "/home/jlin1/OutlierDetection/testing/test_pixel_mask"
 FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
 OUTPUT_DIR = os.path.join(SCORE_DIR, "comparison_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+all_results = []
+
 for score_file in os.listdir(SCORE_DIR):
+    
     if not score_file.endswith("_scored.csv") or score_file.startswith('.'):
         continue
+    
+    print("emter")
 
     video_id = score_file.replace("_scored.csv", "")
     csv_path = os.path.join(SCORE_DIR, score_file)
@@ -51,7 +68,6 @@ for score_file in os.listdir(SCORE_DIR):
 
         if 'bbox' not in df.columns or 'frame_idx' not in df.columns or 'cadi_anomaly' not in df.columns:
             print(f"Missing required columns in {score_file}")
-            print(f"")
             continue
 
         if isinstance(df['bbox'].iloc[0], str):
@@ -82,27 +98,55 @@ for score_file in os.listdir(SCORE_DIR):
                     "bbox": row['bbox'],
                     "cadi_anomaly": int(row['cadi_anomaly']),
                     "mask_anomaly": int(has_mask_anomaly),
+                    "cadi_score": row.get("score_cadi", None),
                     "iou": iou
                 })
 
         if results:
             result_df = pd.DataFrame(results)
+            all_results.append(result_df)
             output_csv = os.path.join(OUTPUT_DIR, f"{video_id}_iou_comparison.csv")
             result_df.to_csv(output_csv, index=False)
             print(f"Saved: {output_csv}")
 
     except Exception as e:
         print(f"Error processing {score_file}: {e}")
+   
+print(all_results)
+
+# auc = roc_auc_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
+# ap = average_precision_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
+# precision = precision_score(mask_anomalies, cadi_anomalies)
+# recall = recall_score(mask_anomalies, cadi_anomalies)
+# f1 = f1_score(mask_anomalies, cadi_anomalies)
+
+# print(f"Precision: {precision:.3f}")
+# print(f"Recall:    {recall:.3f}")
+# print(f"F1 Score:  {f1:.3f}")
+
+if all_results:
+    all_results_df = pd.concat(all_results, ignore_index=True)
+
+    rbdc_p, rbdc_r, rbdc_f1 = compute_rbdc(all_results_df)
+
+    print(f"\n--- RBDC Evaluation ---")
+    print(f"RBDC Precision: {rbdc_p:.3f}")
+    print(f"RBDC Recall:    {rbdc_r:.3f}")
+    print(f"RBDC F1 Score:  {rbdc_f1:.3f}")
+
+    auc = roc_auc_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
+    ap = average_precision_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
+    precision = precision_score(all_results_df['mask_anomaly'], all_results_df['cadi_anomaly'])
+    recall = recall_score(all_results_df['mask_anomaly'], all_results_df['cadi_anomaly'])
+    f1 = f1_score(all_results_df['mask_anomaly'], all_results_df['cadi_anomaly'])
+
+    print(f"\n--- Global Evaluation ---")
+    print(f"AUC:       {auc:.3f}")
+    print(f"AP:        {ap:.3f}")
+    print(f"Precision: {precision:.3f}")
+    print(f"Recall:    {recall:.3f}")
+    print(f"F1 Score:  {f1:.3f}")
+else:
+    print("No results to evaluate.")
 
 
-from sklearn.metrics import roc_auc_score, average_precision_score
-
-auc = roc_auc_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
-ap = average_precision_score(all_results_df['mask_anomaly'], all_results_df['cadi_score'])
-precision = precision_score(mask_anomalies, cadi_anomalies)
-recall = recall_score(mask_anomalies, cadi_anomalies)
-f1 = f1_score(mask_anomalies, cadi_anomalies)
-
-print(f"Precision: {precision:.3f}")
-print(f"Recall:    {recall:.3f}")
-print(f"F1 Score:  {f1:.3f}")
