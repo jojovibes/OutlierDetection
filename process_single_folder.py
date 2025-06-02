@@ -29,8 +29,8 @@ def process_folder(folder_name):
         fpath = os.path.join(folder_path, fname)
         try:
             frame_idx = int(os.path.splitext(fname)[0])
-            if frame_idx == 100:
-                break
+            # if frame_idx == 100:
+            #     break
             # print(f"Processing frame: {frame_idx} — {fname}")
             # print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
 

@@ -18,6 +18,7 @@ FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
 OUTPUT_DIR = os.path.join(SCORE_DIR, "comparison_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+
 def compute_mask_iou(bbox, mask):
     x1, y1, x2, y2 = map(int, bbox)
     h, w = mask.shape
@@ -71,7 +72,17 @@ def plot_score_distributions(df, score_cols, plot_dir):
         plt.savefig(os.path.join(plot_dir, f"{col}_distribution.png"))
         plt.close()
 
-def compute_rbdc_for_model(df, score_col, iou_thresh=0.3, percentile=95):
+# def compute_rbdc_for_model(df, score_col, iou_thresh=0.3, percentile=95):
+#     df['temp_anomaly'] = threshold_top_percent(df, score_col, percentile)
+#     tp = ((df['temp_anomaly'] == 1) & (df['iou'] >= iou_thresh) & (df['mask_anomaly'] == 1)).sum()
+#     fp = ((df['temp_anomaly'] == 1) & ((df['iou'] < iou_thresh) | (df['mask_anomaly'] == 0))).sum()
+#     fn = ((df['temp_anomaly'] == 0) & (df['mask_anomaly'] == 1)).sum()
+#     precision = tp / (tp + fp + 1e-10)
+#     recall = tp / (tp + fn + 1e-10)
+#     f1 = 2 * precision * recall / (precision + recall + 1e-10)
+#     return precision, recall, f1
+
+def compute_rbdc_for_model(df, score_col, iou_thresh, percentile=95):
     df['temp_anomaly'] = threshold_top_percent(df, score_col, percentile)
     tp = ((df['temp_anomaly'] == 1) & (df['iou'] >= iou_thresh) & (df['mask_anomaly'] == 1)).sum()
     fp = ((df['temp_anomaly'] == 1) & ((df['iou'] < iou_thresh) | (df['mask_anomaly'] == 0))).sum()
@@ -80,6 +91,12 @@ def compute_rbdc_for_model(df, score_col, iou_thresh=0.3, percentile=95):
     recall = tp / (tp + fn + 1e-10)
     f1 = 2 * precision * recall / (precision + recall + 1e-10)
     return precision, recall, f1
+
+def compute_rbdc(df, score_cols, iou_thresh=0.0, percentile=95):
+    print("\n--- RBDC Evaluation ---")
+    for col in score_cols:
+        precision, recall, f1 = compute_rbdc_for_model(df, col, iou_thresh, percentile)
+        print(f"{method_names[col]}: RBDC Precision = {precision:.3f}, Recall = {recall:.3f}, F1 = {f1:.3f}")
 
 def normalize_per_video(df, score_cols):
     return df.groupby("video_id")[score_cols].transform(lambda x: (x - x.min()) / (x.max() - x.min() + 1e-10))
@@ -172,5 +189,6 @@ if all_results:
     all_results_df = pd.concat(all_results, ignore_index=True)
 
     evaluate_soft_scores(all_results_df, score_cols)
-    # evaluate_binary_scores(all_results_df, score_cols)
-    # optimize_thresholds(all_results_df, score_cols)
+    evaluate_binary_scores(all_results_df, score_cols)
+    optimize_thresholds(all_results_df, score_cols)
+    compute_rbdc(all_results_df, score_cols)
