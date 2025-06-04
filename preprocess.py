@@ -55,16 +55,6 @@ model.eval()
 
 tracker = BoTSORT(args,frame_rate=30)
 
-# def preprocess_frame(img, img_size=640):
-#     original_shape = img.shape[:2]  # (H, W)
-#     img = letterbox(img, (img_size, img_size), auto=False, scaleFill=True)[0]
-#     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, HWC → CHW
-#     img = np.ascontiguousarray(img)
-#     img_tensor = torch.from_numpy(img).to(DEVICE).float() / 255.0
-#     if img_tensor.ndimension() == 3:
-#         img_tensor = img_tensor.unsqueeze(0)
-#     return img_tensor, original_shape
-
 def preprocess_frame(img, img_size=640):
     # img = letterbox(img, (img_size, img_size), stride=32, auto=True)[0]
     img = letterbox(img, (640, 640), auto=False, scaleFill=True)[0]
@@ -94,7 +84,7 @@ def compute_iou(box1, box2):
     return iou
 
 
-def extract_features(img):
+def extract_features(img, prev_bboxes):
     # img_tensor, original_shape = preprocess_frame(img, IMG_SIZE)
     img_tensor = preprocess_frame(img, IMG_SIZE)
     try:
@@ -106,10 +96,11 @@ def extract_features(img):
             traceback.print_exc()
             return []
 
-    prev_bboxes = {}
+    # prev_bboxes = {}
     metadata = []
 
     class_probs_vector = []
+    logits_vector = [] 
 
     for det in pred_raw:
         if det is None or det.shape[0] == 0:
@@ -119,6 +110,7 @@ def extract_features(img):
         cls_scores = F.sigmoid(cls_logits) 
         class_probs = conf * cls_scores  # YOLO-style: objectness * class_prob
         class_probs_vector.append(class_probs)
+        logits_vector.append(cls_logits)
 
 
     pred = non_max_suppression(pred_raw, CONF_THRESHOLD, IOU_THRESHOLD)[0]
@@ -152,6 +144,7 @@ def extract_features(img):
         matched_class_id = None
         matched_conf = None
         matched_class_probs = None
+        matched_logits = None
         max_iou = 0
 
         for i, (*xyxy, conf, cls) in enumerate(pred):
@@ -162,8 +155,15 @@ def extract_features(img):
                 matched_class_id = int(cls.item())
                 matched_conf = float(conf.item())
                 # matched_class_probs = class_probs_vector[0][i].detach().cpu().numpy().tolist() 
+                RELEVANT_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] 
+
                 if class_probs_vector and i < len(class_probs_vector[0]):
-                    matched_class_probs = class_probs_vector[0][i].detach().cpu().numpy().tolist()
+                    probs = class_probs_vector[0][i].detach().cpu().numpy().tolist()
+                    matched_class_probs = [probs[j] for j in RELEVANT_CLASSES]
+
+                if logits_vector and i < len(logits_vector[0]):
+                    logits = logits_vector[0][i].detach().cpu().numpy().tolist()
+                    matched_logits = [logits[j] for j in RELEVANT_CLASSES]
 
 
         velocity, direction = compute_velocity_direction(bbox, prev_bboxes.get(track_id, bbox))
@@ -177,7 +177,8 @@ def extract_features(img):
             'bbox': bbox,
             'velocity': velocity,
             'direction': direction,
-            'class_probabilities': matched_class_probs 
+            'class_probabilities': matched_class_probs,
+            'logits': matched_logits
         })
 
     torch.cuda.empty_cache() 

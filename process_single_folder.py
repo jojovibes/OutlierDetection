@@ -15,12 +15,13 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 
 def process_folder(folder_name):
     folder_path = os.path.join(ROOT_DIR, folder_name)
     data = []
+    prev_bboxes = {}
 
     for fname in sorted(os.listdir(folder_path)):
         if fname.startswith("._") or not fname.endswith(".jpg"):
@@ -29,8 +30,8 @@ def process_folder(folder_name):
         fpath = os.path.join(folder_path, fname)
         try:
             frame_idx = int(os.path.splitext(fname)[0])
-            # if frame_idx == 100:
-            #     break
+            if frame_idx == 100:
+                break
             # print(f"Processing frame: {frame_idx} — {fname}")
             # print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
 
@@ -39,7 +40,9 @@ def process_folder(folder_name):
                 print(f"[Frame {frame_idx}] Warning: image not readable")
                 continue
 
-            features_list = extract_features(img)
+            # features_list = extract_features(img)
+            features_list = extract_features(img, prev_bboxes)
+
 
             if not features_list:
                 print(f"[Frame {frame_idx}] Warning: no features extracted")
@@ -67,14 +70,22 @@ def process_folder(folder_name):
     original_bbox = df[['bbox']].copy()
 
     df = derive_features(df)
+
     df = df[df['class_probabilities'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
 
     class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
     class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
     df[class_probs.columns] = class_probs
 
+    df = df[df['logits'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
 
-    df.drop(columns=['bbox', 'x1', 'y1', 'x2', 'y2'], inplace=True, errors='ignore')
+    logits = pd.DataFrame(df.pop('logits').tolist(), index=df.index)
+    logits.columns = [f'logit_{i}' for i in range(class_probs.shape[1])]
+    df[logits.columns] = logits
+
+
+    df.drop(columns=['bbox'], inplace=True, errors='ignore')
+    # 'x1', 'y1', 'x2', 'y2'
 
     exclude_cols = ['track_id', 'filename', 'frame_idx']
     scale_cols = [col for col in df.columns if col not in exclude_cols]

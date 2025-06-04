@@ -7,19 +7,37 @@ from sklearn.metrics import (
     roc_auc_score, average_precision_score)
 from sklearn.preprocessing import MinMaxScaler
 import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
 
 score_cols = ['score_if', 'score_gmm', 'score_cadi', 'score_avg']
 method_names = {'score_if': 'IF', 'score_gmm': 'GMM', 'score_cadi': 'CADI', 'score_avg': 'AVG'}
+
 total_frames = 0
 total_anomalous_frames = 0
 
 ROOT_DIR = "/home/jlin1/OutlierDetection/testing"
 SCORE_DIR = os.path.join(ROOT_DIR, "small_batch/output")
 MASKS_DIR = "/home/jlin1/OutlierDetection/testing/test_pixel_mask"
-# FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
+FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
 OUTPUT_DIR = os.path.join(SCORE_DIR, "comparison_results")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+def save_confusion_matrix(df, score_col, threshold_percentile=95, output_dir=".", normalize=None):
+    threshold = np.percentile(df[score_col], threshold_percentile)
+    y_true = df["mask_anomaly"]
+    y_pred = (df[score_col] >= threshold).astype(int)
+
+    cm = confusion_matrix(y_true, y_pred, normalize=normalize)
+    disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["Normal", "Anomaly"])
+
+    fig, ax = plt.subplots(figsize=(5, 5))
+    disp.plot(ax=ax, cmap=plt.cm.Blues, values_format=".2f" if normalize else "d")
+    plt.title(f"Confusion Matrix: {method_names[score_col]}")
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f"confusion_matrix_{score_col}.png"))
+    plt.close()
+
 
 
 def compute_mask_iou(bbox, mask):
@@ -35,6 +53,7 @@ def compute_mask_iou(bbox, mask):
     bbox_mask[y1:y2+1, x1:x2+1] = True
 
     intersection = np.logical_and(mask, bbox_mask).sum()
+    # union = np.logical_or(mask, bbox_mask).sum()
     union = np.count_nonzero(mask)
 
     return intersection / union if union > 0 else 0.0
@@ -45,6 +64,29 @@ def evaluate_soft_scores(df, score_cols):
         auc = roc_auc_score(df['mask_anomaly'], df[col])
         ap = average_precision_score(df['mask_anomaly'], df[col])
         print(f"{method_names[col]}: AUC = {auc:.3f}, AP = {ap:.3f}")
+
+def evaluate_frame_based(frame_df, score_cols):
+    print("\n--- Frame-Based Evaluation ---")
+    for col in score_cols:
+        y_true = frame_df['mask_anomaly']
+        y_score = frame_df[col]
+        auc = roc_auc_score(y_true, y_score)
+        ap = average_precision_score(y_true, y_score)
+
+        threshold = np.percentile(y_score, 90)
+        y_pred = (y_score >= threshold).astype(int)
+
+        p = precision_score(y_true, y_pred)
+        r = recall_score(y_true, y_pred)
+        f1 = f1_score(y_true, y_pred)
+
+        print(f"{method_names[col]}:")
+        print(f"  AUC:        {auc:.3f}")
+        print(f"  AP:         {ap:.3f}")
+        print(f"  Precision:  {p:.3f}")
+        print(f"  Recall:     {r:.3f}")
+        print(f"  F1 Score:   {f1:.3f}")
+
 
 def evaluate_binary_scores(df, score_cols, threshold_percentile=90):
     print(f"\n--- Binary Evaluation (Top {100 - threshold_percentile}% Threshold) ---")
@@ -61,11 +103,11 @@ def optimize_thresholds(df, score_cols):
         best_thresh, best_f1 = optimize_threshold(df, col)
         print(f"{method_names[col]}: Best threshold = {best_thresh:.3f}, Max F1 = {best_f1:.3f}")
 
-
-
 def plot_score_distributions(df, score_cols, plot_dir):
     os.makedirs(plot_dir, exist_ok=True)
     for col in score_cols:
+        save_confusion_matrix(all_results_df, col, threshold_percentile=95, output_dir=OUTPUT_DIR)
+
         plt.figure(figsize=(8, 4))
         plt.hist(df[df['mask_anomaly'] == 1][col], bins=50, alpha=0.5, label="Anomaly")
         plt.hist(df[df['mask_anomaly'] == 0][col], bins=50, alpha=0.5, label="Normal")
@@ -75,18 +117,6 @@ def plot_score_distributions(df, score_cols, plot_dir):
         plt.legend()
         plt.tight_layout()
         plt.savefig(os.path.join(plot_dir, f"{col}_distribution.png"))
-        plt.close()
-    
-    for col in score_cols:
-        plt.figure(figsize=(8, 4))
-        sns.kdeplot(all_results_df[all_results_df['mask_anomaly'] == 1][col], label="Anomalous", shade=True)
-        sns.kdeplot(all_results_df[all_results_df['mask_anomaly'] == 0][col], label="Normal", shade=True)
-        plt.title(f"Score Distribution: {method_names[col]}")
-        plt.xlabel("Anomaly Score")
-        plt.ylabel("Density")
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(os.path.join(OUTPUT_DIR, f"{col}_score_kde.png"))
         plt.close()
 
 # def compute_rbdc_for_model(df, score_col, iou_thresh=0.3, percentile=95):
@@ -176,22 +206,23 @@ for score_file in os.listdir(SCORE_DIR):
         for frame_idx in range(mask_array.shape[0]):
             frame_mask = mask_array[frame_idx]
             has_mask_anomaly = frame_mask.any()
+            IOU_ANOMALY_THRESH = 0.1
 
             frame_objs = df[df['frame_idx'] == frame_idx]
-            IOU_ANOMALY_THRESH = 0.2
-
 
             for _, row in frame_objs.iterrows():
-                scores = {k: row[k] if k in row else None for k in ['score_if', 'score_gmm', 'score_cadi', 'score_avg']}
-                iou = compute_mask_iou(row['bbox'], frame_mask)
+                scores = {k: row[k] if k in row else None for k in score_cols}
 
+                if has_mask_anomaly:
+                    iou = compute_mask_iou(row['bbox'], frame_mask)
+                else:
+                    iou = 0.00
+                
                 is_mask_anomaly = int(iou >= IOU_ANOMALY_THRESH)
 
                 results.append({
                     "video_id": video_id,
                     "frame_idx": frame_idx,
-                    "track_id": row.get("track_id", None),
-                    "bbox": row['bbox'],
                     "mask_anomaly": int(is_mask_anomaly),
                     "iou": iou,
                     **scores
@@ -208,7 +239,6 @@ for score_file in os.listdir(SCORE_DIR):
         print(f"Error processing {score_file}: {e}")
 
 
-
 if all_results:
     all_results_df = pd.concat(all_results, ignore_index=True)
     all_results_df[score_cols] = normalize_per_video(all_results_df, score_cols)
@@ -217,47 +247,18 @@ if all_results:
     print("Total detections:", len(all_results_df))
     print("Total with mask_anomaly = 1:", all_results_df['mask_anomaly'].sum())
 
-    # Check average IOU for anomalous and normal labels
-    print("Avg IOU (anomaly):", all_results_df[all_results_df['mask_anomaly'] == 1]['iou'].mean())
-    print("Avg IOU (normal):", all_results_df[all_results_df['mask_anomaly'] == 0]['iou'].mean())
-
     print(f"\n--- Ground Truth Frame-Level Stats ---")
     print(f"Total frames across all videos: {total_frames}")
     print(f"Total anomalous frames (pixel-level): {total_anomalous_frames}")
 
+    # Aggregate detection scores to frame level (e.g., max score per frame)
+    frame_level_df = all_results_df.groupby(['video_id', 'frame_idx']).agg(
+        {**{col: 'max' for col in score_cols}, 'mask_anomaly': 'max'}
+    ).reset_index()
+
     evaluate_soft_scores(all_results_df, score_cols)
     # evaluate_binary_scores(all_results_df, score_cols)
+    optimize_thresholds(all_results_df, score_cols)
     compute_rbdc(all_results_df, score_cols)
+    evaluate_frame_based(frame_level_df, score_cols)
     plot_score_distributions(all_results_df, score_cols, os.path.join(OUTPUT_DIR, "score_distributions"))
-
-    all_results_df['gmm_vs_cadi'] = all_results_df['score_gmm'] - all_results_df['score_if']
-
-# Plot histogram of difference
-    plt.figure(figsize=(6, 4))
-    plt.hist(all_results_df['gmm_vs_cadi'], bins=100, alpha=0.7, color='purple')
-    plt.axvline(0, color='black', linestyle='--')
-    plt.title("Score Difference: GMM - CADI")
-    plt.xlabel("Score Difference")
-    plt.ylabel("Count")
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, "gmm_vs_cadi_diff.png"))
-    plt.close()
-
-    print(all_results_df[['score_gmm', 'score_cadi']].corr())
-
-
-    anomalous = all_results_df[all_results_df['mask_anomaly'] == 1]
-    normal = all_results_df[all_results_df['mask_anomaly'] == 0]
-
-    plt.figure(figsize=(8, 5))
-    plt.hist(anomalous['score_gmm'] - anomalous['score_cadi'], bins=100, alpha=0.6, label='Anomalous')
-    plt.hist(normal['score_gmm'] - normal['score_cadi'], bins=100, alpha=0.6, label='Normal')
-    plt.axvline(0, color='black', linestyle='--')
-    plt.title("Score Difference (GMM - CADI) by Label")
-    plt.xlabel("Score Difference")
-    plt.ylabel("Count")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(os.path.join(OUTPUT_DIR, "gmm_cadi_diff_by_label.png"))
-    plt.close()
-

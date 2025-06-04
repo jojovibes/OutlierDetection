@@ -10,6 +10,7 @@ import traceback
 
 
 np.float = float  
+#v
 
 from preprocess import extract_features
 from GMM import run as run_GMM
@@ -17,7 +18,7 @@ from IF import run as run_IF
 from utilz import derive_features
 from outlierDetection import run as run_cadi
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
 OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 

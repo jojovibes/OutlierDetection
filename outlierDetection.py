@@ -53,14 +53,16 @@ from sklearn.preprocessing import StandardScaler
 
 
 def run(df):
-    print("entered cadi")
     NB_TREES = 100
-    MAX_HEIGHT = 1000
+    MAX_HEIGHT = 100
 
     # Define context and behavior features
     class_prob_features = [f'class_prob_{i}' for i in range(80)]
-    context_features = ['frame_idx', 'class_id'] + class_prob_features
-    behavior_features = ['velocity', 'direction', 'width', 'height', 'center_x', 'center_y', 'confidence']
+    # context_features = ['frame_idx', 'class_id'] + class_prob_features
+    # behavior_features = ['velocity', 'direction', 'width', 'height', 'center_x', 'center_y', 'confidence']
+    context_features = ['class_id','center_x', 'center_y','width', 'height', 'ratio', 'area']
+    behavior_features = ['velocity', 'direction', 'confidence'] + [f'logit_{i}' for i in range(12)]  # assuming 12 relevant classes
+
 
     df_out = []
 
