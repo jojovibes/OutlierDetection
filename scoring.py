@@ -5,11 +5,14 @@ import ast
 
 def compute_mask_iou(bbox, mask):
     x1, y1, x2, y2 = map(int, bbox)
+
     h, w = mask.shape
+
     x1, y1 = max(0, x1), max(0, y1)
     x2, y2 = min(w - 1, x2), min(h - 1, y2)
 
     if x2 <= x1 or y2 <= y1:
+        print(f"Invalid bbox {bbox} for mask of shape {mask.shape}. Returning 0.0 IoU.")
         return 0.0
 
     bbox_mask = np.zeros_like(mask, dtype=bool)
@@ -58,12 +61,16 @@ for score_file in os.listdir(SCORE_DIR):
             has_mask_anomaly = frame_mask.any()
 
             frame_objs = df[df['frame_idx'] == frame_idx]
-            has_score_anomaly = (frame_objs['cadi_anomaly'] == 1).any()
+            # has_score_anomaly = (frame_objs['cadi_anomaly'] == 1).any()
 
-            if not (has_mask_anomaly or has_score_anomaly):
-                continue  # Skip frames with no anomalies at all
+      
+                # print(f"Processing video {video_id}, frame {frame_idx} - Mask anomaly: {has_mask_anomaly}, Score anomaly: {has_score_anomaly}")
 
             for _, row in frame_objs.iterrows():  # only iterate relevant rows
+                has_score_anomaly = int(row['cadi_anomaly'] == 1)
+
+                if not has_mask_anomaly and not has_score_anomaly:
+                    continue
                 
                 iou = compute_mask_iou(row['bbox'], frame_mask)
 
@@ -73,7 +80,7 @@ for score_file in os.listdir(SCORE_DIR):
                     "track_id": row.get("track_id", None),
                     "bbox": row['bbox'],
                     "cadi_anomaly": int(row['cadi_anomaly']),
-                    "mask_anomaly": int(iou > 0),
+                    "mask_anomaly": int(has_mask_anomaly),
                     "iou": iou
                 })
 
