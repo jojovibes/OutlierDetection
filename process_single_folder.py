@@ -10,13 +10,11 @@ import cv2
 np.float = float
 
 from preprocess import extract_features
-from GMM import run as run_GMM
-from IF import run as run_IF
 from utilz import derive_features
-from outlierDetection import run as run_cadi
+from outlierDetection import run_cadi, run_GMM, run_IF
 
-ROOT_DIR = '/home/jlin1/OutlierDetection/testing/small_batch'
-OUTPUT_DIR = os.path.join(ROOT_DIR, "output")
+ROOT_DIR = '/home/jlin1/OutlierDetection/testing/frames'
+OUTPUT_DIR = os.path.join(ROOT_DIR, "output_only_logits")
 
 def process_folder(folder_name):
     folder_path = os.path.join(ROOT_DIR, folder_name)
@@ -28,21 +26,18 @@ def process_folder(folder_name):
             continue
 
         fpath = os.path.join(folder_path, fname)
+
         try:
             frame_idx = int(os.path.splitext(fname)[0])
-            if frame_idx == 100:
-                break
-            # print(f"Processing frame: {frame_idx} — {fname}")
-            # print(f"[{stage}] Memory used: {psutil.virtual_memory().used / 1e9:.2f} GB")
+            # if frame_idx == 20:
+            #     break
 
             img = cv2.imread(fpath)
             if img is None:
                 print(f"[Frame {frame_idx}] Warning: image not readable")
                 continue
 
-            # features_list = extract_features(img)
-            features_list = extract_features(img, prev_bboxes)
-
+            features_list = extract_features(img, prev_bboxes) #preprocesing
 
             if not features_list:
                 print(f"[Frame {frame_idx}] Warning: no features extracted")
@@ -69,18 +64,21 @@ def process_folder(folder_name):
     scored_path = os.path.join(OUTPUT_DIR, f"{folder_name}_scored.csv")
     original_bbox = df[['bbox']].copy()
 
-    df = derive_features(df)
+    df = derive_features(df) #derive features utils
 
-    df = df[df['class_probabilities'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
+    df.drop(columns=['class_probabilities'], inplace=True, errors='ignore')
 
-    class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
-    class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
-    df[class_probs.columns] = class_probs
+    # df = df[df['class_probabilities'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
+
+    # class_probs = pd.DataFrame(df.pop('class_probabilities').tolist(), index=df.index)
+    # class_probs.columns = [f'class_prob_{i}' for i in range(class_probs.shape[1])]
+    # df[class_probs.columns] = class_probs
 
     df = df[df['logits'].apply(lambda x: isinstance(x, list) and all(np.isfinite(x)))].reset_index(drop=True)
 
     logits = pd.DataFrame(df.pop('logits').tolist(), index=df.index)
-    logits.columns = [f'logit_{i}' for i in range(class_probs.shape[1])]
+    # logits.columns = [f'logit_{i}' for i in range(class_probs.shape[1])]
+    logits.columns = [f'logit_{i}' for i in range(len(logits.columns))]
     df[logits.columns] = logits
 
 

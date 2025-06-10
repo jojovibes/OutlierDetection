@@ -17,7 +17,7 @@ total_frames = 0
 total_anomalous_frames = 0
 
 ROOT_DIR = "/home/jlin1/OutlierDetection/testing"
-SCORE_DIR = os.path.join(ROOT_DIR, "small_batch/output")
+SCORE_DIR = os.path.join(ROOT_DIR, "frames/output_only_logits")
 MASKS_DIR = "/home/jlin1/OutlierDetection/testing/test_pixel_mask"
 FRAME_DIR = "/home/jlin1/OutlierDetection/testing/test_frame_mask"
 OUTPUT_DIR = os.path.join(SCORE_DIR, "comparison_results")
@@ -241,6 +241,34 @@ for score_file in os.listdir(SCORE_DIR):
 
 if all_results:
     all_results_df = pd.concat(all_results, ignore_index=True)
+
+    # --- Compute Frame-Level Scores and Labels ---
+    frame_level = (
+        all_results_df
+        .groupby(['video_id', 'frame_idx'])[score_cols]
+        .max()  # Use max score per frame
+        .reset_index()
+    )
+
+    # Ground truth: frame is anomalous if any detection overlaps mask
+    frame_labels = (
+        all_results_df
+        .groupby(['video_id', 'frame_idx'])['mask_anomaly']
+        .max()
+        .reset_index()
+    )
+
+    # Merge predictions with ground truth
+    frame_eval_df = pd.merge(frame_level, frame_labels, on=['video_id', 'frame_idx'])
+
+    # Compute AUC and AP per method
+    print("\n--- Frame-Level AUC / AP ---")
+    for col in score_cols:
+        auc = roc_auc_score(frame_eval_df['mask_anomaly'], frame_eval_df[col])
+        ap = average_precision_score(frame_eval_df['mask_anomaly'], frame_eval_df[col])
+        print(f"{method_names[col]}: AUC = {auc:.3f}, AP = {ap:.3f}")
+
+
     all_results_df[score_cols] = normalize_per_video(all_results_df, score_cols)
 
     # Sanity check: how many objects overlap a true anomaly mask?
@@ -258,7 +286,7 @@ if all_results:
 
     evaluate_soft_scores(all_results_df, score_cols)
     # evaluate_binary_scores(all_results_df, score_cols)
-    optimize_thresholds(all_results_df, score_cols)
+    # optimize_thresholds(all_results_df, score_cols)
     compute_rbdc(all_results_df, score_cols)
     evaluate_frame_based(frame_level_df, score_cols)
     plot_score_distributions(all_results_df, score_cols, os.path.join(OUTPUT_DIR, "score_distributions"))

@@ -38,12 +38,10 @@ import numpy as np
 
 
 def run(df):
-    print("entered gmm")
     X = df[select_feature_columns(df)]
     n_samples = len(X)
 
     if n_samples < 2:
-        print(f"[GMM] Not enough samples for GMM (n={n_samples}). Returning NaNs.")
         return pd.Series([np.nan] * n_samples, index=df.index, name='score_gmm')
 
     try:
@@ -67,7 +65,6 @@ def run(df):
         anomaly_score = -scores
         score_normalized = MinMaxScaler().fit_transform(anomaly_score.reshape(-1, 1)).flatten()
 
-        print("finished gmm")
 
         return pd.Series(score_normalized, index=df.index, name='score_gmm')
 

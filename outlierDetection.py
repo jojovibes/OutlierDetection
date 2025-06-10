@@ -46,23 +46,31 @@
 
 import pandas as pd
 import numpy as np
+
 import tempfile
 from cadi.Src.forest import Forest
 from cadi.Src.dataset import Dataset
 from sklearn.preprocessing import StandardScaler
 
+from sklearn.mixture import GaussianMixture
+from utilz import select_feature_columns
+from sklearn.preprocessing import MinMaxScaler
 
-def run(df):
+
+from sklearn.ensemble import IsolationForest
+from utilz import select_feature_columns
+
+
+
+def run_cadi(df):
     NB_TREES = 100
     MAX_HEIGHT = 100
 
-    # Define context and behavior features
-    class_prob_features = [f'class_prob_{i}' for i in range(80)]
     # context_features = ['frame_idx', 'class_id'] + class_prob_features
     # behavior_features = ['velocity', 'direction', 'width', 'height', 'center_x', 'center_y', 'confidence']
     context_features = ['class_id','center_x', 'center_y','width', 'height', 'ratio', 'area']
     behavior_features = ['velocity', 'direction', 'confidence'] + [f'logit_{i}' for i in range(12)]  # assuming 12 relevant classes
-
+    # behavior_features = ['velocity', 'direction', 'confidence'] + [f'logit_{i}' for i in range(12)] + [f'class_prob_{i}' for i in range(12)] # assuming 12 relevant classes
 
     df_out = []
 
@@ -100,5 +108,61 @@ def run(df):
         except Exception as e:
             print(f"[CADI] Error processing class_id={class_id}: {e}")
 
-    print("finished cadi")
     return pd.concat(df_out, ignore_index=True)
+
+
+
+def run_GMM(df):
+    X = df[select_feature_columns(df)]
+    n_samples = len(X)
+
+    if n_samples < 2:
+        return pd.Series([np.nan] * n_samples, index=df.index, name='score_gmm')
+
+    try:
+        # Clean and normalize input
+        X = X.replace([np.inf, -np.inf], np.nan).dropna()
+        X_scaled = MinMaxScaler().fit_transform(X)
+
+        # Tune number of components using BIC
+        best_bic = np.inf
+        best_gmm = None
+        for k in range(1, min(6, n_samples)):
+            gmm = GaussianMixture(n_components=k, covariance_type="diag", random_state=42)
+            gmm.fit(X_scaled)
+            bic = gmm.bic(X_scaled)
+            if bic < best_bic:
+                best_bic = bic
+                best_gmm = gmm
+
+        # Anomaly scores (negative log-likelihood)
+        scores = best_gmm.score_samples(X_scaled)
+        anomaly_score = -scores
+        score_normalized = MinMaxScaler().fit_transform(anomaly_score.reshape(-1, 1)).flatten()
+
+
+        return pd.Series(score_normalized, index=df.index, name='score_gmm')
+
+    except Exception as e:
+        print(f"[GMM] Error fitting GMM: {e}")
+        return pd.Series([np.nan] * n_samples, index=df.index, name='score_gmm')
+
+
+def run_IF(df):
+
+    X = df[select_feature_columns(df)]
+
+    isoforest = IsolationForest(n_estimators=100, contamination="auto", random_state=42)
+    isoforest.fit(X)
+
+    # Anomaly score (negative = more anomalous)
+    scores = -isoforest.score_samples(X)
+    # df["anomaly_score"] = -isoforest.score_samples(df)
+
+    return pd.Series(scores, index=df.index, name='score_if')
+
+# metadata_file_path = "/Volumes/ronni/shanghaitech/metadata_output/01_0014_metadata.json"
+# output_path = "outputs/isoforest_scored_metadata.csv"
+
+# df.to_csv(output_path, index=False)
+# print(f"Saved scored metadata to: {output_path}")
