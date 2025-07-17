@@ -77,97 +77,112 @@ def compute_iou(box1, box2):
     yA = max(box1[1], box2[1])
     xB = min(box1[2], box2[2])
     yB = min(box1[3], box2[3])
-    interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
-    box1Area = (box1[2] - box1[0] + 1) * (box1[3] - box1[1] + 1)
-    box2Area = (box2[2] - box2[0] + 1) * (box2[3] - box2[1] + 1)
-    iou = interArea / float(box1Area + box2Area - interArea)
+
+    interArea = max(0, xB - xA) * max(0, yB - yA)
+    box1Area = max(0, (box1[2] - box1[0])) * max(0, (box1[3] - box1[1]))
+    box2Area = max(0, (box2[2] - box2[0])) * max(0, (box2[3] - box2[1]))
+
+    unionArea = box1Area + box2Area - interArea
+    if unionArea == 0:
+        return 0.0
+    iou = interArea / unionArea
     return iou
 
 
-def extract_features(img, prev_bboxes):
-    # img_tensor, original_shape = preprocess_frame(img, IMG_SIZE)
+def extract_features(img, prev_bboxes, frame_idx=None):
     img_tensor = preprocess_frame(img, IMG_SIZE)
+
     try:
         with torch.no_grad():
             pred_raw = model(img_tensor, augment=False)[0]
     except Exception as e:
-            import traceback
-            print("Error in YOLOv7 forward pass:")
-            traceback.print_exc()
-            return []
+        import traceback
+        print("Error in YOLOv7 forward pass:")
+        traceback.print_exc()
+        return []
 
-    # prev_bboxes = {}
     metadata = []
-
-    class_probs_vector = []
-    logits_vector = [] 
-
-    for det in pred_raw:
-        if det is None or det.shape[0] == 0:
-            continue
-        conf = det[:, 4:5]
-        cls_logits = det[:, 5:]
-        cls_scores = F.sigmoid(cls_logits) 
-        class_probs = conf * cls_scores  # YOLO-style: objectness * class_prob
-        class_probs_vector.append(class_probs)
-        logits_vector.append(cls_logits)
-
 
     pred = non_max_suppression(pred_raw, CONF_THRESHOLD, IOU_THRESHOLD)[0]
 
     if pred is None or not len(pred):
         tracker.update(np.empty((0, 5)), img)
+        return []
 
     pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], img.shape).round()
-    # pred[:, :4] = scale_coords(img_tensor.shape[2:], pred[:, :4], original_shape).round()
-
 
     detections = []
-    for *xyxy, conf, cls in pred:
-        x1, y1, x2, y2 = [float(v) for v in xyxy]
-        class_id = int(cls.item())
-        detections.append([x1, y1, x2, y2, conf.cpu().item()])
-    detections = np.array(detections)
+    class_probs_vector = []
+    logits_vector = []
 
+    pred_raw_cpu = pred_raw[0].cpu()
+    for i, (*xyxy, conf, cls) in enumerate(pred):
+        x1, y1, x2, y2 = [float(v) for v in xyxy]
+        detections.append([x1, y1, x2, y2, conf.cpu().item()])
+
+        # Match this pred box back to a raw prediction using IoU
+        best_iou = 0
+
+        best_logits = np.array([0.0] * 80)  # fallback
+        best_probs = np.array([0.0] * 80)
+
+        for raw_pred in pred_raw_cpu:
+            raw_box = raw_pred[:4].numpy()
+            raw_conf = raw_pred[4].item()
+            raw_logits = raw_pred[5:].numpy()
+
+            iou = compute_iou([x1, y1, x2, y2], raw_box)
+            if iou > best_iou:
+                best_iou = iou
+                best_logits = raw_logits
+                best_probs = (raw_conf * torch.sigmoid(torch.tensor(raw_logits))).numpy()
+
+        logits_vector.append(best_logits)
+        class_probs_vector.append(best_probs)
+
+    # for i, (*xyxy, conf, cls) in enumerate(pred):
+    #     x1, y1, x2, y2 = [float(v) for v in xyxy]
+    #     detections.append([x1, y1, x2, y2, conf.cpu().item()])
+
+    #     cls_logits = pred[i, 5:] if pred.shape[1] > 6 else torch.zeros(80)  # fallback
+    #     cls_probs = torch.sigmoid(cls_logits)
+    #     probs = (conf * cls_probs).detach().cpu().numpy().tolist()
+    #     logits = cls_logits.detach().cpu().numpy().tolist()
+
+    #     class_probs_vector.append(probs)
+    #     logits_vector.append(logits)
+
+    detections = np.array(detections)
     outputs = tracker.update(detections, img)
 
     if outputs is None or len(outputs) == 0:
-        print("No tracked objects for this frame.")
+        print(f"[Frame {frame_idx}] No tracked objects.")
         return []
 
+    RELEVANT_CLASSES = list(range(12))
 
     for output in outputs:
-
         x1, y1, x2, y2 = output.tlbr
         track_id = int(output.track_id)
         bbox = [float(x1), float(y1), float(x2), float(y2)]
+
+        max_iou = 0
         matched_class_id = None
         matched_conf = None
         matched_class_probs = None
         matched_logits = None
-        max_iou = 0
 
-        for i, (*xyxy, conf, cls) in enumerate(pred):
-            pred_box = [float(xyxy[0]), float(xyxy[1]), float(xyxy[2]), float(xyxy[3])]
+        for j, det_box in enumerate(pred[:, :4]):
+            pred_box = det_box.cpu().numpy()
             iou = compute_iou(bbox, pred_box)
             if iou > max_iou:
                 max_iou = iou
-                matched_class_id = int(cls.item())
-                matched_conf = float(conf.item())
-                # matched_class_probs = class_probs_vector[0][i].detach().cpu().numpy().tolist() 
-                RELEVANT_CLASSES = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] 
-
-                if class_probs_vector and i < len(class_probs_vector[0]):
-                    probs = class_probs_vector[0][i].detach().cpu().numpy().tolist()
-                    matched_class_probs = [probs[j] for j in RELEVANT_CLASSES]
-
-                if logits_vector and i < len(logits_vector[0]):
-                    logits = logits_vector[0][i].detach().cpu().numpy().tolist()
-                    matched_logits = [logits[j] for j in RELEVANT_CLASSES]
-
+                matched_class_id = int(pred[j, 5].item()) if pred.shape[1] > 6 else 0
+                matched_conf = float(pred[j, 4].item())
+                matched_class_probs = [class_probs_vector[j][k] for k in RELEVANT_CLASSES]
+                matched_logits = [logits_vector[j][k] for k in RELEVANT_CLASSES]
 
         velocity, direction = compute_velocity_direction(bbox, prev_bboxes.get(track_id, bbox))
-
         prev_bboxes[track_id] = bbox
 
         metadata.append({
@@ -178,11 +193,15 @@ def extract_features(img, prev_bboxes):
             'velocity': velocity,
             'direction': direction,
             'class_probabilities': matched_class_probs,
-            'logits': matched_logits
+            'logits': matched_logits,
+            'max_IOU': max_iou
         })
 
-    torch.cuda.empty_cache() 
+        print(f"[Frame {frame_idx}] track_id: {track_id}, max_iou: {max_iou}")
+        print(f"class_probs : {matched_class_probs}")
+        print(f"logits : {matched_logits}")
+
+    torch.cuda.empty_cache()
     gc.collect()
 
     return metadata
-

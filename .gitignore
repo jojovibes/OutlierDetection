@@ -1,0 +1,36 @@
+# experiment configs
+# configs
+
+# datasets, outputs
+/data
+/outputs
+
+# dependencies
+yolov7
+BoT-SORT
+
+# arun files
+/.envrc
+/.nvim.lua
+/rsync.sh
+
+# joely files
+
+# uv (python packaging)
+/build
+/src/vad.egg-info
+/uv.lock
+__pycache__/
+*.pyc
+
+# jupyter
+.ipynb_checkpoints/
+*.tif
+*.jpg
+*.db
+*.npy
+*.png
+*.avi
+*.bmp
+
+._*

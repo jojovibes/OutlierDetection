@@ -63,7 +63,7 @@ def compute_rbdc(df, masks_dict, iou_thresh=0.3):
                 fp += 1
 
         if mask.sum() > 0:
-            fn += 1  # Ground truth anomaly exists but not matched
+            fn += 1  
 
     precision = tp / (tp + fp + 1e-10)
     recall = tp / (tp + fn + 1e-10)
