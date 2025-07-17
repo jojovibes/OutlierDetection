@@ -4,6 +4,7 @@
 # datasets, outputs
 /data
 /outputs
+/testing
 
 # dependencies
 yolov7
@@ -32,5 +33,6 @@ __pycache__/
 *.png
 *.avi
 *.bmp
+*.zip
 
 ._*
